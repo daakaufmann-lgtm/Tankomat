@@ -24,9 +24,7 @@ header {
   font-weight:bold;
 }
 
-#map {
-  height:250px;
-}
+#map { height:250px; }
 
 button {
   width:90%;
@@ -45,11 +43,13 @@ button {
   margin:10px;
   padding:12px;
   border-radius:10px;
-  box-shadow:0 0 10px rgba(0,255,100,0.1);
 }
 
-.best {
-  border:2px solid #00ff88;
+.best { border:2px solid #00ff88; }
+
+.alert {
+  border:2px solid red;
+  box-shadow:0 0 10px red;
 }
 </style>
 
@@ -75,7 +75,10 @@ let userLng = 10.97;
 
 const API_URL = "https://mtqnxdwbwpvdzrblxpsz.supabase.co/functions/v1/dynamic-worker";
 
-// 📍 Standort holen
+// 🔥 Preisalarm Grenze
+const ALERT_PRICE = 2.05;
+
+// 📍 Standort
 function getLocation(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(pos=>{
@@ -97,9 +100,7 @@ function getLocation(){
 function initMap(){
   map = L.map('map').setView([userLat, userLng], 12);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
   L.marker([userLat, userLng]).addTo(map)
     .bindPopup("📍 Du bist hier")
@@ -116,11 +117,27 @@ async function loadData(){
     const data = await res.json();
 
     if(!data.stations){
-      list.innerHTML = "❌ Keine Daten von API";
+      list.innerHTML = "❌ Keine Daten";
       return;
     }
 
-    renderList(data.stations);
+    // 👉 NUR TOP 10 holen Details (Performance!)
+    const stations = data.stations;
+
+    for (let s of stations.slice(0,10)){
+      try{
+        const d = await fetch(`${API_URL}?detail=${s.id}`);
+        const detail = await d.json();
+
+        if(detail.station){
+          s.diesel = detail.station.diesel;
+          s.e5 = detail.station.e5;
+          s.e10 = detail.station.e10;
+        }
+      }catch(e){}
+    }
+
+    renderList(stations);
 
   }catch(e){
     console.error(e);
@@ -128,34 +145,39 @@ async function loadData(){
   }
 }
 
-// 📦 Liste anzeigen
+// 📦 Anzeige
 function renderList(stations){
   const list = document.getElementById("list");
   list.innerHTML = "";
 
-  // sortieren nach Preis
   stations.sort((a,b)=>a.price - b.price);
 
   const best = stations[0];
 
   stations.forEach(s=>{
-    const div = document.createElement("div");
+
+    // 🔥 fallback
+    const diesel = s.diesel ?? s.price ?? null;
 
     const isBest = s.id === best.id;
+    const isAlert = diesel && diesel <= ALERT_PRICE;
 
-    div.className = "card " + (isBest ? "best" : "");
+    const div = document.createElement("div");
+    div.className = "card " + (isBest ? "best " : "") + (isAlert ? "alert" : "");
 
     div.innerHTML = `
       ${isBest ? "🏆 BESTER PREIS<br><br>" : ""}
+      ${isAlert ? "🚨 PREISALARM!<br><br>" : ""}
 
       <b>${s.name}</b><br>
       ${s.place}<br><br>
 
-      ⛽ Preis: <span style="color:${isBest ? '#00ff88' : 'white'}">
-        ${s.price} €
-      </span><br><br>
+      ⛽ Diesel: ${diesel ? diesel + " €" : "nicht verfügbar"}<br>
 
-      📍 ${s.dist} km<br><br>
+      ${s.e5 != null ? "🟢 E5: " + s.e5 + " €<br>" : ""}
+      ${s.e10 != null ? "🔵 E10: " + s.e10 + " €<br>" : ""}
+
+      <br>📍 ${s.dist} km<br><br>
 
       <button onclick="navigate(${s.lat},${s.lng})">🧭 Navigation</button>
     `;
@@ -166,12 +188,14 @@ function renderList(stations){
   });
 }
 
-// 🧭 Navigation
+// 🧭 Navi
 function navigate(lat,lng){
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
 }
 
-// Start
+// 🔄 Auto Refresh
+setInterval(loadData, 60000);
+
 getLocation();
 
 </script>
