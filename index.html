@@ -4,51 +4,175 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tankomat TEST</title>
+<title>Tankomat PRO 🚀</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+body {
+  margin:0;
+  font-family: Arial;
+  background:#0b1220;
+  color:white;
+}
+
+header {
+  background: linear-gradient(90deg,#00c6ff,#00ff88);
+  padding:15px;
+  text-align:center;
+  font-size:20px;
+  font-weight:bold;
+}
+
+#map {
+  height:250px;
+}
+
+button {
+  width:90%;
+  margin:10px auto;
+  display:block;
+  padding:12px;
+  border:none;
+  border-radius:8px;
+  background:#00cc66;
+  color:white;
+  font-size:16px;
+}
+
+.card {
+  background:#111a2e;
+  margin:10px;
+  padding:12px;
+  border-radius:10px;
+  box-shadow:0 0 10px rgba(0,255,100,0.1);
+}
+
+.best {
+  border:2px solid #00ff88;
+}
+</style>
+
 </head>
 
-<body style="background:#111;color:white;font-family:Arial">
+<body>
 
-<h2>Tankomat Test</h2>
-<button onclick="loadData()">Laden</button>
+<header>🚀 Tankomat PRO</header>
 
-<div id="list">Noch nichts geladen</div>
+<div id="map"></div>
+
+<button onclick="loadData()">🔄 Aktualisieren</button>
+
+<div id="list">🔄 Lade Daten...</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 
+let map;
+let userLat = 52.18;
+let userLng = 10.97;
+
 const API_URL = "https://mtqnxdwbwpvdzrblxpsz.supabase.co/functions/v1/dynamic-worker";
 
+// 📍 Standort holen
+function getLocation(){
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      userLat = pos.coords.latitude;
+      userLng = pos.coords.longitude;
+      initMap();
+      loadData();
+    }, ()=>{
+      initMap();
+      loadData();
+    });
+  } else {
+    initMap();
+    loadData();
+  }
+}
+
+// 🗺️ Karte
+function initMap(){
+  map = L.map('map').setView([userLat, userLng], 12);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  L.marker([userLat, userLng]).addTo(map)
+    .bindPopup("📍 Du bist hier")
+    .openPopup();
+}
+
+// 🔥 Daten laden
 async function loadData(){
   const list = document.getElementById("list");
-  list.innerHTML = "Lade...";
+  list.innerHTML = "🔄 Lade Tankstellen...";
 
   try{
-    const res = await fetch(API_URL + "?lat=52.18&lng=10.97");
+    const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
     const data = await res.json();
 
-    console.log(data);
-
     if(!data.stations){
-      list.innerHTML = "❌ keine stations";
+      list.innerHTML = "❌ Keine Daten von API";
       return;
     }
 
-    list.innerHTML = "";
-
-    data.stations.forEach(s=>{
-      const div = document.createElement("div");
-      div.innerHTML = `
-        <b>${s.name}</b><br>
-        Preis: ${s.price} €<br><br>
-      `;
-      list.appendChild(div);
-    });
+    renderList(data.stations);
 
   }catch(e){
     console.error(e);
-    list.innerHTML = "❌ Fehler";
+    list.innerHTML = "❌ Fehler beim Laden";
   }
 }
+
+// 📦 Liste anzeigen
+function renderList(stations){
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  // sortieren nach Preis
+  stations.sort((a,b)=>a.price - b.price);
+
+  const best = stations[0];
+
+  stations.forEach(s=>{
+    const div = document.createElement("div");
+
+    const isBest = s.id === best.id;
+
+    div.className = "card " + (isBest ? "best" : "");
+
+    div.innerHTML = `
+      ${isBest ? "🏆 BESTER PREIS<br><br>" : ""}
+
+      <b>${s.name}</b><br>
+      ${s.place}<br><br>
+
+      ⛽ Preis: <span style="color:${isBest ? '#00ff88' : 'white'}">
+        ${s.price} €
+      </span><br><br>
+
+      📍 ${s.dist} km<br><br>
+
+      <button onclick="navigate(${s.lat},${s.lng})">🧭 Navigation</button>
+    `;
+
+    list.appendChild(div);
+
+    L.marker([s.lat, s.lng]).addTo(map);
+  });
+}
+
+// 🧭 Navigation
+function navigate(lat,lng){
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
+}
+
+// Start
+getLocation();
 
 </script>
 
