@@ -9,12 +9,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
-body {
-  margin:0;
-  font-family: Arial;
-  background:#0b1220;
-  color:white;
-}
+body { margin:0; font-family: Arial; background:#0b1220; color:white; }
 
 header {
   background: linear-gradient(90deg,#00c6ff,#00ff88);
@@ -35,7 +30,6 @@ button {
   border-radius:8px;
   background:#00cc66;
   color:white;
-  font-size:16px;
 }
 
 .card {
@@ -56,9 +50,7 @@ button {
 <header>🚀 Tankomat PRO</header>
 
 <div id="map"></div>
-
 <button onclick="loadData()">🔄 Aktualisieren</button>
-
 <div id="list">Lade Daten...</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -82,7 +74,6 @@ function toggleFavorite(id){
   loadData();
 }
 
-// 📍 Standort
 function getLocation(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(pos=>{
@@ -100,7 +91,6 @@ function getLocation(){
   }
 }
 
-// 🗺️ Map
 function initMap(){
   map = L.map('map').setView([userLat, userLng], 12);
 
@@ -111,21 +101,21 @@ function initMap(){
     .openPopup();
 }
 
-// 🔥 LOAD DATA (STABIL)
+// 🔥 FIX: Fallback + bessere Logik
 async function loadData(){
   try{
     const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
     const data = await res.json();
 
-    console.log("API DATA:", data);
-
     if(!data.stations){
-      document.getElementById("list").innerHTML = "❌ Keine Daten (API Problem)";
+      document.getElementById("list").innerHTML = "❌ API Fehler";
       return;
     }
 
-    // DETAILS HOLEN
-    for (let s of data.stations.slice(0,10)){
+    // 👉 Details nur für erste 10 (Performance)
+    const first = data.stations.slice(0,10);
+
+    for (let s of first){
       try{
         const d = await fetch(`${API_URL}?detail=${s.id}`);
         const detail = await d.json();
@@ -141,31 +131,22 @@ async function loadData(){
     renderList(data.stations);
 
   }catch(e){
-    console.error(e);
-    document.getElementById("list").innerHTML = "❌ Fehler beim Laden";
+    document.getElementById("list").innerHTML = "❌ Fehler";
   }
 }
 
-// 📦 LISTE
 function renderList(stations){
   const list = document.getElementById("list");
   list.innerHTML = "";
 
-  if(!stations || stations.length === 0){
-    list.innerHTML = "❌ Keine Tankstellen gefunden";
-    return;
-  }
-
-  stations.sort((a,b)=>{
-    const aFav = favorites.includes(a.id);
-    const bFav = favorites.includes(b.id);
-    return bFav - aFav || a.price - b.price;
-  });
-
+  stations.sort((a,b)=>a.price - b.price);
   let best = stations[0];
 
   stations.forEach(s=>{
     const isFav = favorites.includes(s.id);
+
+    // 🔥 WICHTIG: FALLBACK
+    let diesel = s.diesel ?? s.price ?? null;
 
     const div = document.createElement("div");
     div.className = "card " + (best.id === s.id ? "best " : "") + (isFav ? "favorite" : "");
@@ -176,7 +157,7 @@ function renderList(stations){
       <b>${s.name}</b><br>
       ${s.place}<br><br>
 
-      ⛽ Diesel: ${s.diesel != null ? s.diesel + " €" : "nicht verfügbar"}<br>
+      ⛽ Diesel: ${diesel ? diesel + " €" : "nicht verfügbar"}<br>
       ${s.e5 != null ? "🟢 E5: " + s.e5 + " €<br>" : ""}
       ${s.e10 != null ? "🔵 E10: " + s.e10 + " €<br>" : ""}
 
@@ -193,7 +174,6 @@ function renderList(stations){
   });
 }
 
-// 🧭 NAVI
 function navigate(lat,lng){
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
 }
@@ -203,5 +183,3 @@ getLocation();
 
 </body>
 </html>
-
-
