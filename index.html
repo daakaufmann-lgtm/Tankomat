@@ -23,13 +23,9 @@ header {
   font-size:20px;
   font-weight:bold;
   background: linear-gradient(90deg,#00c6ff,#00ff88);
-  box-shadow:0 2px 10px rgba(0,0,0,0.3);
 }
 
-#map {
-  height:220px;
-  border-bottom:1px solid #111;
-}
+#map { height:220px; }
 
 button {
   width:90%;
@@ -41,37 +37,22 @@ button {
   background: linear-gradient(90deg,#00ff88,#00c6ff);
   color:#000;
   font-weight:bold;
-  font-size:15px;
 }
 
 .card {
   margin:12px;
   padding:16px;
   border-radius:16px;
-  background: rgba(20,30,60,0.8);
-  backdrop-filter: blur(10px);
-  box-shadow:0 4px 20px rgba(0,0,0,0.4);
+  background:#111a2e;
 }
 
-.best {
-  border:2px solid #00ff88;
-}
-
-.favorite {
-  border:2px solid gold;
-}
+.best { border:2px solid #00ff88; }
+.favorite { border:2px solid gold; }
 
 .price {
   font-size:20px;
-  font-weight:bold;
   color:#00ff88;
 }
-
-.small {
-  opacity:0.7;
-  font-size:13px;
-}
-
 </style>
 
 </head>
@@ -81,7 +62,6 @@ button {
 <header>🚀 Tankomat PRO</header>
 
 <div id="map"></div>
-
 <button onclick="loadData()">🔄 Aktualisieren</button>
 
 <div id="list">🔄 Lade Daten...</div>
@@ -90,16 +70,15 @@ button {
 
 <script>
 
-// CONFIG
 const API_URL = "https://mtqnxdwbwpvdzrblxpsz.supabase.co/functions/v1/dynamic-worker";
 
 let map;
 let userLat;
 let userLng;
 
-// FAVORITEN
 let favorites = JSON.parse(localStorage.getItem("fav") || "[]");
 
+// ⭐ Favoriten
 function toggleFav(id){
   if(favorites.includes(id)){
     favorites = favorites.filter(f=>f!==id);
@@ -110,7 +89,26 @@ function toggleFav(id){
   loadData();
 }
 
-// MAP
+// 📍 Start
+function start(){
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      userLat = pos.coords.latitude;
+      userLng = pos.coords.longitude;
+      initMap();
+      loadData();
+    }, fallback);
+  } else fallback();
+}
+
+function fallback(){
+  userLat = 52.18;
+  userLng = 10.97;
+  initMap();
+  loadData();
+}
+
+// 🗺️ Map
 function initMap(){
   map = L.map('map').setView([userLat,userLng], 12);
 
@@ -123,64 +121,60 @@ function initMap(){
     .openPopup();
 }
 
-// GEO
-function start(){
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(pos=>{
-      userLat = pos.coords.latitude;
-      userLng = pos.coords.longitude;
-      initMap();
-      loadData();
-    }, ()=>{
-      fallback();
-    });
-  } else {
-    fallback();
-  }
-}
-
-function fallback(){
-  userLat = 52.18;
-  userLng = 10.97;
-  initMap();
-  loadData();
-}
-
-// LOAD
+// 🔥 LOAD (ROBUST)
 async function loadData(){
 
-  if(!userLat){
-    document.getElementById("list").innerHTML="📍 Standort wird geladen...";
+  const list = document.getElementById("list");
+
+  if(!userLat || !userLng){
+    list.innerHTML="📍 Warte auf Standort...";
     return;
   }
 
-  const list = document.getElementById("list");
   list.innerHTML="🔄 Lade Tankstellen...";
 
   try{
 
-    const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
-    const data = await res.json();
+    const url = `${API_URL}?lat=${userLat}&lng=${userLng}`;
+    console.log("CALL:", url);
 
-    if(!data.stations){
-      list.innerHTML="❌ Keine Daten";
+    const res = await fetch(url);
+
+    if(!res.ok){
+      throw new Error("HTTP Fehler " + res.status);
+    }
+
+    const data = await res.json();
+    console.log("DATA:", data);
+
+    // 👉 FIX: flexible Datenstruktur
+    let stations = [];
+
+    if(data.stations){
+      stations = data.stations;
+    } else if(data.station){
+      stations = [data.station];
+    }
+
+    if(stations.length === 0){
+      list.innerHTML="❌ Keine Daten empfangen";
       return;
     }
 
-    render(data.stations);
+    render(stations);
 
   }catch(e){
-    list.innerHTML="❌ Fehler beim Laden";
+    console.error(e);
+    list.innerHTML = "❌ Fehler beim Laden<br><small>"+e.message+"</small>";
   }
 }
 
-// RENDER
+// 🎨 RENDER
 function render(stations){
 
   const list = document.getElementById("list");
   list.innerHTML="";
 
-  // SORT
   stations.sort((a,b)=>{
     const favA = favorites.includes(a.id);
     const favB = favorites.includes(b.id);
@@ -191,7 +185,7 @@ function render(stations){
 
   stations.slice(0,10).forEach(s=>{
 
-    const price = s.price;
+    const price = s.price || s.diesel || "n/a";
 
     const div = document.createElement("div");
 
@@ -203,7 +197,7 @@ function render(stations){
       ${s.id===best.id ? "🏆 BESTER PREIS<br><br>" : ""}
 
       <b>${s.name}</b><br>
-      <span class="small">${s.place}</span><br><br>
+      ${s.place}<br><br>
 
       <div class="price">⛽ ${price} €</div><br>
 
@@ -219,15 +213,14 @@ function render(stations){
 
     L.marker([s.lat,s.lng]).addTo(map);
   });
-
 }
 
-// NAV
+// 🧭 NAV
 function nav(lat,lng){
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
 }
 
-// SERVICE WORKER
+// SW
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js");
 }
@@ -239,3 +232,4 @@ start();
 
 </body>
 </html>
+
