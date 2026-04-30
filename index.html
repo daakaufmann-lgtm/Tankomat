@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tankomat PRO 🚀</title>
+<title>Reidt's Tankomat PRO 🚀</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
@@ -28,14 +28,13 @@ header {
 
 button {
   width:90%;
-  margin:10px auto;
+  margin:8px auto;
   display:block;
   padding:12px;
   border:none;
   border-radius:8px;
   background:#00cc66;
   color:white;
-  font-size:16px;
 }
 
 .card {
@@ -46,21 +45,17 @@ button {
 }
 
 .best { border:2px solid #00ff88; }
-
-.alert {
-  border:2px solid red;
-  box-shadow:0 0 10px red;
-}
+.favorite { border:2px solid gold; }
+.alert { border:2px solid red; }
 </style>
 
 </head>
 
 <body>
 
-<header>🚀 Daniel Reidt's Tankomat PRO</header>
+<header>🚀 Reidt's Tankomat PRO 🚀</header>
 
 <div id="map"></div>
-
 <button onclick="loadData()">🔄 Aktualisieren</button>
 
 <div id="list">🔄 Lade Daten...</div>
@@ -74,9 +69,28 @@ let userLat = 52.18;
 let userLng = 10.97;
 
 const API_URL = "https://mtqnxdwbwpvdzrblxpsz.supabase.co/functions/v1/dynamic-worker";
+const ALERT_PRICE = 2.20;
 
-// 🔥 Preisalarm Grenze
-const ALERT_PRICE = 2.05;
+// ⭐ Favoriten laden
+let favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
+
+// 🔔 Push erlauben
+function requestNotification(){
+  if("Notification" in window){
+    Notification.requestPermission();
+  }
+}
+
+// ⭐ Favorit togglen
+function toggleFavorite(id){
+  if(favorites.includes(id)){
+    favorites = favorites.filter(f=>f!==id);
+  } else {
+    favorites.push(id);
+  }
+  localStorage.setItem("favorites", JSON.stringify(favorites));
+  loadData();
+}
 
 // 📍 Standort
 function getLocation(){
@@ -96,7 +110,7 @@ function getLocation(){
   }
 }
 
-// 🗺️ Karte
+// 🗺️ Map
 function initMap(){
   map = L.map('map').setView([userLat, userLng], 12);
 
@@ -121,10 +135,8 @@ async function loadData(){
       return;
     }
 
-    // 👉 NUR TOP 10 holen Details (Performance!)
-    const stations = data.stations;
-
-    for (let s of stations.slice(0,10)){
+    // 👉 Detail laden (nur Top 10)
+    for (let s of data.stations.slice(0,10)){
       try{
         const d = await fetch(`${API_URL}?detail=${s.id}`);
         const detail = await d.json();
@@ -137,10 +149,9 @@ async function loadData(){
       }catch(e){}
     }
 
-    renderList(stations);
+    renderList(data.stations);
 
   }catch(e){
-    console.error(e);
     list.innerHTML = "❌ Fehler beim Laden";
   }
 }
@@ -150,20 +161,34 @@ function renderList(stations){
   const list = document.getElementById("list");
   list.innerHTML = "";
 
-  stations.sort((a,b)=>a.price - b.price);
+  // ⭐ Favoriten zuerst
+  stations.sort((a,b)=>{
+    const aFav = favorites.includes(a.id);
+    const bFav = favorites.includes(b.id);
+    return bFav - aFav || a.price - b.price;
+  });
 
   const best = stations[0];
 
   stations.forEach(s=>{
 
-    // 🔥 fallback
     const diesel = s.diesel ?? s.price ?? null;
-
+    const isFav = favorites.includes(s.id);
     const isBest = s.id === best.id;
     const isAlert = diesel && diesel <= ALERT_PRICE;
 
+    // 🔔 PUSH
+    if(isAlert && Notification.permission === "granted"){
+      new Notification("🚨 Günstiger Sprit!", {
+        body: s.name + " - " + diesel + " €"
+      });
+    }
+
     const div = document.createElement("div");
-    div.className = "card " + (isBest ? "best " : "") + (isAlert ? "alert" : "");
+    div.className = "card "
+      + (isBest ? "best " : "")
+      + (isFav ? "favorite " : "")
+      + (isAlert ? "alert " : "");
 
     div.innerHTML = `
       ${isBest ? "🏆 BESTER PREIS<br><br>" : ""}
@@ -180,26 +205,29 @@ function renderList(stations){
       <br>📍 ${s.dist} km<br><br>
 
       <button onclick="navigate(${s.lat},${s.lng})">🧭 Navigation</button>
+      <button onclick="toggleFavorite('${s.id}')">
+        ${isFav ? "⭐ Entfernen" : "⭐ Favorit"}
+      </button>
     `;
 
     list.appendChild(div);
-
     L.marker([s.lat, s.lng]).addTo(map);
   });
 }
 
-// 🧭 Navi
+// 🧭 Navigation
 function navigate(lat,lng){
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
 }
 
-// 🔄 Auto Refresh
+// 🔄 Auto refresh
 setInterval(loadData, 60000);
 
+// Start
+requestNotification();
 getLocation();
 
 </script>
 
 </body>
 </html>
-
