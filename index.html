@@ -11,7 +11,7 @@
 <style>
 body {
   margin:0;
-  font-family: Arial, sans-serif;
+  font-family: Arial;
   background:#0b1220;
   color:white;
 }
@@ -20,8 +20,8 @@ header {
   background: linear-gradient(90deg,#00c6ff,#00ff88);
   padding:15px;
   text-align:center;
-  font-weight:bold;
   font-size:20px;
+  font-weight:bold;
 }
 
 #map {
@@ -68,8 +68,8 @@ button {
 
 <script>
 let map;
-let userLat = 52.52;
-let userLng = 13.40;
+let userLat = 52.18;
+let userLng = 10.97;
 
 function initMap() {
   map = L.map('map').setView([userLat, userLng], 12);
@@ -81,7 +81,7 @@ function initMap() {
 
 async function loadData() {
   try {
-    const res = await fetch(`https://api.tankerkoenig.de/json/list.php?lat=${userLat}&lng=${userLng}&rad=10&sort=price&type=diesel&apikey=demo`);
+    const res = await fetch(`https://api.tankerkoenig.de/json/list.php?lat=${userLat}&lng=${userLng}&rad=10&sort=price&type=all&apikey=demo`);
     const data = await res.json();
 
     renderList(data.stations);
@@ -96,20 +96,21 @@ function renderList(stations) {
 
   if (!stations || stations.length === 0) return;
 
-  let best = stations[0];
-
-  stations.forEach(s => {
-    if (s.price && s.price < best.price) best = s;
-  });
+  // BESTEN PREIS FINDEN
+  let best = stations
+    .filter(s => s.price)
+    .sort((a,b)=>a.price-b.price)[0];
 
   stations.forEach(s => {
     const div = document.createElement("div");
-    div.className = "card" + (s.id === best.id ? " best" : "");
+    div.className = "card" + (best && s.id === best.id ? " best" : "");
 
     div.innerHTML = `
       <b>${s.name}</b><br>
       ${s.place}<br>
-      ${s.price} €<br>
+      Diesel: ${s.diesel || "-"} €<br>
+      E5: ${s.e5 || "-"} €<br>
+      E10: ${s.e10 || "-"} €<br>
       ${s.dist} km<br>
       <button onclick="navigate(${s.lat},${s.lng})">Navigation</button>
     `;
