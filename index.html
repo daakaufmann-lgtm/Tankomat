@@ -11,7 +11,7 @@
 <style>
 body {
   margin:0;
-  font-family: Arial, sans-serif;
+  font-family: Arial;
   background:#0b1220;
   color:white;
 }
@@ -71,8 +71,32 @@ let map;
 let userLat = 52.18;
 let userLng = 10.97;
 
-// 🔥 DEIN API KEY (funktioniert!)
 const API_KEY = "1887fa92-8a53-462a-8efc-d124c14297a4";
+
+// 🚀 GPS holen
+function getLocation() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        userLat = pos.coords.latitude;
+        userLng = pos.coords.longitude;
+
+        console.log("GPS:", userLat, userLng);
+
+        initMap();
+        loadData();
+      },
+      err => {
+        console.log("GPS Fehler, nehme Standard:", err);
+        initMap();
+        loadData();
+      }
+    );
+  } else {
+    initMap();
+    loadData();
+  }
+}
 
 function initMap() {
   map = L.map('map').setView([userLat, userLng], 12);
@@ -80,6 +104,10 @@ function initMap() {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap'
   }).addTo(map);
+
+  L.marker([userLat, userLng]).addTo(map)
+    .bindPopup("📍 Du bist hier")
+    .openPopup();
 }
 
 async function loadData() {
@@ -87,7 +115,7 @@ async function loadData() {
     const res = await fetch(`https://api.tankerkoenig.de/json/list.php?lat=${userLat}&lng=${userLng}&rad=10&sort=price&type=all&apikey=${API_KEY}`);
     const data = await res.json();
 
-    console.log(data); // Debug
+    console.log(data);
 
     renderList(data.stations);
   } catch (e) {
@@ -100,11 +128,10 @@ function renderList(stations) {
   list.innerHTML = "";
 
   if (!stations || stations.length === 0) {
-    list.innerHTML = "<p style='padding:10px'>❌ Keine Daten gefunden</p>";
+    list.innerHTML = "<p style='padding:10px'>❌ Keine Tankstellen gefunden</p>";
     return;
   }
 
-  // besten Preis finden (Diesel bevorzugt)
   let best = stations
     .filter(s => s.diesel)
     .sort((a,b)=>a.diesel-b.diesel)[0];
@@ -136,8 +163,8 @@ function navigate(lat,lng){
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
 }
 
-initMap();
-loadData();
+// 🔥 START
+getLocation();
 </script>
 
 </body>
