@@ -24,9 +24,7 @@ header {
   font-weight:bold;
 }
 
-#map {
-  height:250px;
-}
+#map { height:250px; }
 
 button {
   width:90%;
@@ -121,15 +119,15 @@ function initMap(){
     .openPopup();
 }
 
-// 🔥 Daten laden + Details holen
+// 🔥 Daten laden + Detail holen
 async function loadData(){
   const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
   const data = await res.json();
 
-  // 🔥 jetzt für jede Tankstelle Details holen
+  // Details laden (nur erste 10 für Performance)
   for (let s of data.stations.slice(0, 10)) {
     try {
-      const detailRes = await fetch(`${API_URL}&detail=${s.id}`);
+      const detailRes = await fetch(`${API_URL}?detail=${s.id}`);
       const detail = await detailRes.json();
 
       if(detail.station){
@@ -178,11 +176,14 @@ function renderList(stations){
       <b>${s.name}</b><br>
       ${s.place}<br><br>
 
-      ⛽ Diesel: <span class="${getPriceClass(s.diesel)}">${s.diesel ?? "-"} €</span><br>
-      🟢 E5: ${s.e5 ?? "-"} €<br>
-      🔵 E10: ${s.e10 ?? "-"} €<br><br>
+      ⛽ Diesel: <span class="${getPriceClass(s.diesel)}">
+        ${s.diesel ? s.diesel + " €" : "nicht verfügbar"}
+      </span><br>
 
-      📍 ${s.dist} km<br><br>
+      ${s.e5 ? "🟢 E5: " + s.e5 + " €<br>" : ""}
+      ${s.e10 ? "🔵 E10: " + s.e10 + " €<br>" : ""}
+
+      <br>📍 ${s.dist} km<br><br>
 
       <button onclick="navigate(${s.lat},${s.lng})">🧭 Navigation</button>
       <button onclick="toggleFavorite('${s.id}')">
@@ -221,4 +222,3 @@ getLocation();
 </body>
 </html>
 
-</html>
