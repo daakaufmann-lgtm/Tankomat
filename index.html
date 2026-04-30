@@ -43,17 +43,10 @@ button {
   margin:10px;
   padding:12px;
   border-radius:10px;
-  transition:0.3s;
 }
-
-.card:hover { transform:scale(1.02); }
 
 .best { border:2px solid #00ff88; }
 .favorite { border:2px solid gold; }
-
-.price-low { color:#00ff88; }
-.price-mid { color:#ffaa00; }
-.price-high { color:#ff4444; }
 </style>
 
 </head>
@@ -66,7 +59,7 @@ button {
 
 <button onclick="loadData()">🔄 Aktualisieren</button>
 
-<div id="list"></div>
+<div id="list">Lade Daten...</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
@@ -77,7 +70,6 @@ let userLng = 10.97;
 
 const API_URL = "https://mtqnxdwbwpvdzrblxpsz.supabase.co/functions/v1/dynamic-worker";
 
-// ⭐ Favoriten
 let favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
 
 function toggleFavorite(id){
@@ -108,7 +100,7 @@ function getLocation(){
   }
 }
 
-// 🗺️ Karte
+// 🗺️ Map
 function initMap(){
   map = L.map('map').setView([userLat, userLng], 12);
 
@@ -119,39 +111,50 @@ function initMap(){
     .openPopup();
 }
 
-// 🔥 Daten laden + Detail holen
+// 🔥 LOAD DATA (STABIL)
 async function loadData(){
-  const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
-  const data = await res.json();
+  try{
+    const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
+    const data = await res.json();
 
-  for (let s of data.stations.slice(0, 10)) {
-    try {
-      const detailRes = await fetch(`${API_URL}?detail=${s.id}`);
-      const detail = await detailRes.json();
+    console.log("API DATA:", data);
 
-      if(detail.station){
-        s.diesel = detail.station.diesel;
-        s.e5 = detail.station.e5;
-        s.e10 = detail.station.e10;
-      }
-    } catch(e){}
+    if(!data.stations){
+      document.getElementById("list").innerHTML = "❌ Keine Daten (API Problem)";
+      return;
+    }
+
+    // DETAILS HOLEN
+    for (let s of data.stations.slice(0,10)){
+      try{
+        const d = await fetch(`${API_URL}?detail=${s.id}`);
+        const detail = await d.json();
+
+        if(detail.station){
+          s.diesel = detail.station.diesel;
+          s.e5 = detail.station.e5;
+          s.e10 = detail.station.e10;
+        }
+      }catch(e){}
+    }
+
+    renderList(data.stations);
+
+  }catch(e){
+    console.error(e);
+    document.getElementById("list").innerHTML = "❌ Fehler beim Laden";
   }
-
-  renderList(data.stations);
 }
 
-// 🎨 Preisfarbe
-function getPriceClass(price){
-  if(price == null) return "";
-  if(price < 2.10) return "price-low";
-  if(price < 2.25) return "price-mid";
-  return "price-high";
-}
-
-// 📦 Liste
+// 📦 LISTE
 function renderList(stations){
   const list = document.getElementById("list");
   list.innerHTML = "";
+
+  if(!stations || stations.length === 0){
+    list.innerHTML = "❌ Keine Tankstellen gefunden";
+    return;
+  }
 
   stations.sort((a,b)=>{
     const aFav = favorites.includes(a.id);
@@ -165,9 +168,7 @@ function renderList(stations){
     const isFav = favorites.includes(s.id);
 
     const div = document.createElement("div");
-    div.className = "card "
-      + (best.id === s.id ? "best " : "")
-      + (isFav ? "favorite" : "");
+    div.className = "card " + (best.id === s.id ? "best " : "") + (isFav ? "favorite" : "");
 
     div.innerHTML = `
       ${best.id === s.id ? "🏆 BESTER PREIS<br><br>" : ""}
@@ -175,10 +176,7 @@ function renderList(stations){
       <b>${s.name}</b><br>
       ${s.place}<br><br>
 
-      ⛽ Diesel: <span class="${getPriceClass(s.diesel)}">
-        ${s.diesel != null ? s.diesel + " €" : "nicht verfügbar"}
-      </span><br>
-
+      ⛽ Diesel: ${s.diesel != null ? s.diesel + " €" : "nicht verfügbar"}<br>
       ${s.e5 != null ? "🟢 E5: " + s.e5 + " €<br>" : ""}
       ${s.e10 != null ? "🔵 E10: " + s.e10 + " €<br>" : ""}
 
@@ -191,18 +189,14 @@ function renderList(stations){
     `;
 
     list.appendChild(div);
-
     L.marker([s.lat, s.lng]).addTo(map);
   });
 }
 
-// 🧭 Navigation
+// 🧭 NAVI
 function navigate(lat,lng){
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
 }
-
-// 🔄 Auto Refresh
-setInterval(loadData, 60000);
 
 getLocation();
 </script>
