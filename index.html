@@ -4,54 +4,52 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tankomat PRO</title>
+<title>Tankomat PRO 🚀</title>
 
-<link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
 body {
   margin:0;
-  font-family: system-ui;
-  background: linear-gradient(180deg,#0b1220,#020617);
+  font-family: Arial;
+  background:#0b1220;
   color:white;
 }
 
 header {
-  padding:16px;
+  background: linear-gradient(90deg,#00c6ff,#00ff88);
+  padding:15px;
   text-align:center;
   font-size:20px;
   font-weight:bold;
-  background: linear-gradient(90deg,#00c6ff,#00ff88);
 }
 
-#map { height:220px; }
+#map { height:250px; }
 
 button {
   width:90%;
   margin:10px auto;
   display:block;
-  padding:14px;
+  padding:12px;
   border:none;
-  border-radius:12px;
-  background: linear-gradient(90deg,#00ff88,#00c6ff);
-  color:#000;
-  font-weight:bold;
+  border-radius:8px;
+  background:#00cc66;
+  color:white;
+  font-size:16px;
 }
 
 .card {
-  margin:12px;
-  padding:16px;
-  border-radius:16px;
   background:#111a2e;
+  margin:10px;
+  padding:12px;
+  border-radius:10px;
 }
 
 .best { border:2px solid #00ff88; }
-.favorite { border:2px solid gold; }
 
-.price {
-  font-size:20px;
-  color:#00ff88;
+.alert {
+  border:2px solid red;
+  box-shadow:0 0 10px red;
 }
 </style>
 
@@ -62,6 +60,7 @@ button {
 <header>🚀 Tankomat PRO</header>
 
 <div id="map"></div>
+
 <button onclick="loadData()">🔄 Aktualisieren</button>
 
 <div id="list">🔄 Lade Daten...</div>
@@ -70,166 +69,138 @@ button {
 
 <script>
 
+let map;
+let userLat = 52.18;
+let userLng = 10.97;
+
 const API_URL = "https://mtqnxdwbwpvdzrblxpsz.supabase.co/functions/v1/dynamic-worker";
 
-let map;
-let userLat;
-let userLng;
+// 🔥 Preisalarm Grenze
+const ALERT_PRICE = 2.05;
 
-let favorites = JSON.parse(localStorage.getItem("fav") || "[]");
-
-// ⭐ Favoriten
-function toggleFav(id){
-  if(favorites.includes(id)){
-    favorites = favorites.filter(f=>f!==id);
-  } else {
-    favorites.push(id);
-  }
-  localStorage.setItem("fav", JSON.stringify(favorites));
-  loadData();
-}
-
-// 📍 Start
-function start(){
+// 📍 Standort
+function getLocation(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(pos=>{
       userLat = pos.coords.latitude;
       userLng = pos.coords.longitude;
       initMap();
       loadData();
-    }, fallback);
-  } else fallback();
+    }, ()=>{
+      initMap();
+      loadData();
+    });
+  } else {
+    initMap();
+    loadData();
+  }
 }
 
-function fallback(){
-  userLat = 52.18;
-  userLng = 10.97;
-  initMap();
-  loadData();
-}
-
-// 🗺️ Map
+// 🗺️ Karte
 function initMap(){
-  map = L.map('map').setView([userLat,userLng], 12);
+  map = L.map('map').setView([userLat, userLng], 12);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-    .addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  L.marker([userLat,userLng])
-    .addTo(map)
+  L.marker([userLat, userLng]).addTo(map)
     .bindPopup("📍 Du bist hier")
     .openPopup();
 }
 
-// 🔥 LOAD (ROBUST)
+// 🔥 Daten laden
 async function loadData(){
-
   const list = document.getElementById("list");
-
-  if(!userLat || !userLng){
-    list.innerHTML="📍 Warte auf Standort...";
-    return;
-  }
-
-  list.innerHTML="🔄 Lade Tankstellen...";
+  list.innerHTML = "🔄 Lade Tankstellen...";
 
   try{
-
-    const url = `${API_URL}?lat=${userLat}&lng=${userLng}`;
-    console.log("CALL:", url);
-
-    const res = await fetch(url);
-
-    if(!res.ok){
-      throw new Error("HTTP Fehler " + res.status);
-    }
-
+    const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
     const data = await res.json();
-    console.log("DATA:", data);
 
-    // 👉 FIX: flexible Datenstruktur
-    let stations = [];
-
-    if(data.stations){
-      stations = data.stations;
-    } else if(data.station){
-      stations = [data.station];
-    }
-
-    if(stations.length === 0){
-      list.innerHTML="❌ Keine Daten empfangen";
+    if(!data.stations){
+      list.innerHTML = "❌ Keine Daten";
       return;
     }
 
-    render(stations);
+    // 👉 NUR TOP 10 holen Details (Performance!)
+    const stations = data.stations;
+
+    for (let s of stations.slice(0,10)){
+      try{
+        const d = await fetch(`${API_URL}?detail=${s.id}`);
+        const detail = await d.json();
+
+        if(detail.station){
+          s.diesel = detail.station.diesel;
+          s.e5 = detail.station.e5;
+          s.e10 = detail.station.e10;
+        }
+      }catch(e){}
+    }
+
+    renderList(stations);
 
   }catch(e){
     console.error(e);
-    list.innerHTML = "❌ Fehler beim Laden<br><small>"+e.message+"</small>";
+    list.innerHTML = "❌ Fehler beim Laden";
   }
 }
 
-// 🎨 RENDER
-function render(stations){
-
+// 📦 Anzeige
+function renderList(stations){
   const list = document.getElementById("list");
-  list.innerHTML="";
+  list.innerHTML = "";
 
-  stations.sort((a,b)=>{
-    const favA = favorites.includes(a.id);
-    const favB = favorites.includes(b.id);
-    return favB - favA || a.price - b.price;
-  });
+  stations.sort((a,b)=>a.price - b.price);
 
   const best = stations[0];
 
-  stations.slice(0,10).forEach(s=>{
+  stations.forEach(s=>{
 
-    const price = s.price || s.diesel || "n/a";
+    // 🔥 fallback
+    const diesel = s.diesel ?? s.price ?? null;
+
+    const isBest = s.id === best.id;
+    const isAlert = diesel && diesel <= ALERT_PRICE;
 
     const div = document.createElement("div");
-
-    div.className = "card "
-      + (s.id===best.id ? "best " : "")
-      + (favorites.includes(s.id) ? "favorite " : "");
+    div.className = "card " + (isBest ? "best " : "") + (isAlert ? "alert" : "");
 
     div.innerHTML = `
-      ${s.id===best.id ? "🏆 BESTER PREIS<br><br>" : ""}
+      ${isBest ? "🏆 BESTER PREIS<br><br>" : ""}
+      ${isAlert ? "🚨 PREISALARM!<br><br>" : ""}
 
       <b>${s.name}</b><br>
       ${s.place}<br><br>
 
-      <div class="price">⛽ ${price} €</div><br>
+      ⛽ Diesel: ${diesel ? diesel + " €" : "nicht verfügbar"}<br>
 
-      📍 ${s.dist} km<br><br>
+      ${s.e5 != null ? "🟢 E5: " + s.e5 + " €<br>" : ""}
+      ${s.e10 != null ? "🔵 E10: " + s.e10 + " €<br>" : ""}
 
-      <button onclick="nav(${s.lat},${s.lng})">🧭 Navigation</button>
-      <button onclick="toggleFav('${s.id}')">
-        ${favorites.includes(s.id) ? "⭐ Entfernen" : "⭐ Favorit"}
-      </button>
+      <br>📍 ${s.dist} km<br><br>
+
+      <button onclick="navigate(${s.lat},${s.lng})">🧭 Navigation</button>
     `;
 
     list.appendChild(div);
 
-    L.marker([s.lat,s.lng]).addTo(map);
+    L.marker([s.lat, s.lng]).addTo(map);
   });
 }
 
-// 🧭 NAV
-function nav(lat,lng){
+// 🧭 Navi
+function navigate(lat,lng){
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
 }
 
-// SW
-if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js");
-}
+// 🔄 Auto Refresh
+setInterval(loadData, 60000);
 
-// START
-start();
+getLocation();
 
 </script>
 
 </body>
 </html>
+
 
