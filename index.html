@@ -38,9 +38,6 @@ button {
   padding:12px;
   border-radius:10px;
 }
-
-.best { border:2px solid #00ff88; }
-.favorite { border:2px solid gold; }
 </style>
 
 </head>
@@ -51,7 +48,7 @@ button {
 
 <div id="map"></div>
 <button onclick="loadData()">🔄 Aktualisieren</button>
-<div id="list">Lade Daten...</div>
+<div id="list">🔄 Lade Daten...</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
@@ -62,18 +59,7 @@ let userLng = 10.97;
 
 const API_URL = "https://mtqnxdwbwpvdzrblxpsz.supabase.co/functions/v1/dynamic-worker";
 
-let favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
-
-function toggleFavorite(id){
-  if(favorites.includes(id)){
-    favorites = favorites.filter(f=>f!==id);
-  } else {
-    favorites.push(id);
-  }
-  localStorage.setItem("favorites", JSON.stringify(favorites));
-  loadData();
-}
-
+// 📍 Standort
 function getLocation(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(pos=>{
@@ -82,6 +68,7 @@ function getLocation(){
       initMap();
       loadData();
     }, ()=>{
+      console.warn("GPS nicht erlaubt → fallback");
       initMap();
       loadData();
     });
@@ -91,6 +78,7 @@ function getLocation(){
   }
 }
 
+// 🗺️ Map
 function initMap(){
   map = L.map('map').setView([userLat, userLng], 12);
 
@@ -101,72 +89,54 @@ function initMap(){
     .openPopup();
 }
 
-// 🔥 FIX: Fallback + bessere Logik
+// 🔥 LOAD DATA SAFE VERSION
 async function loadData(){
-  try{
-    const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
-    const data = await res.json();
+  const list = document.getElementById("list");
+  list.innerHTML = "🔄 Lade Tankstellen...";
 
-    if(!data.stations){
-      document.getElementById("list").innerHTML = "❌ API Fehler";
-      return;
+  try{
+
+    console.log("LAT/LNG:", userLat, userLng);
+
+    const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
+
+    if(!res.ok){
+      throw new Error("API antwortet nicht");
     }
 
-    // 👉 Details nur für erste 10 (Performance)
-    const first = data.stations.slice(0,10);
+    const data = await res.json();
 
-    for (let s of first){
-      try{
-        const d = await fetch(`${API_URL}?detail=${s.id}`);
-        const detail = await d.json();
+    console.log("API DATA:", data);
 
-        if(detail.station){
-          s.diesel = detail.station.diesel;
-          s.e5 = detail.station.e5;
-          s.e10 = detail.station.e10;
-        }
-      }catch(e){}
+    if(!data.stations){
+      list.innerHTML = "❌ API liefert keine stations";
+      return;
     }
 
     renderList(data.stations);
 
   }catch(e){
-    document.getElementById("list").innerHTML = "❌ Fehler";
+    console.error("FEHLER:", e);
+    list.innerHTML = "❌ Fehler beim Laden<br><br>" + e.message;
   }
 }
 
+// 📦 LISTE (EINFACH & STABIL)
 function renderList(stations){
   const list = document.getElementById("list");
   list.innerHTML = "";
 
-  stations.sort((a,b)=>a.price - b.price);
-  let best = stations[0];
-
   stations.forEach(s=>{
-    const isFav = favorites.includes(s.id);
-
-    // 🔥 WICHTIG: FALLBACK
-    let diesel = s.diesel ?? s.price ?? null;
-
     const div = document.createElement("div");
-    div.className = "card " + (best.id === s.id ? "best " : "") + (isFav ? "favorite" : "");
+    div.className = "card";
 
     div.innerHTML = `
-      ${best.id === s.id ? "🏆 BESTER PREIS<br><br>" : ""}
-
       <b>${s.name}</b><br>
       ${s.place}<br><br>
 
-      ⛽ Diesel: ${diesel ? diesel + " €" : "nicht verfügbar"}<br>
-      ${s.e5 != null ? "🟢 E5: " + s.e5 + " €<br>" : ""}
-      ${s.e10 != null ? "🔵 E10: " + s.e10 + " €<br>" : ""}
+      ⛽ Preis: ${s.price ?? "-"} €<br><br>
 
-      <br>📍 ${s.dist} km<br><br>
-
-      <button onclick="navigate(${s.lat},${s.lng})">🧭 Navigation</button>
-      <button onclick="toggleFavorite('${s.id}')">
-        ${isFav ? "⭐ Entfernen" : "⭐ Favorit"}
-      </button>
+      📍 ${s.dist} km<br><br>
     `;
 
     list.appendChild(div);
@@ -174,12 +144,9 @@ function renderList(stations){
   });
 }
 
-function navigate(lat,lng){
-  window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
-}
-
 getLocation();
 </script>
 
 </body>
 </html>
+
