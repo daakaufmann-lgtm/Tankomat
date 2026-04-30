@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tankomat 🚀</title>
+<title>Tankomat PRO 🚀</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
@@ -48,17 +48,10 @@ button {
   transition:0.3s;
 }
 
-.card:hover {
-  transform:scale(1.02);
-}
+.card:hover { transform:scale(1.02); }
 
-.best {
-  border:2px solid #00ff88;
-}
-
-.favorite {
-  border:2px solid gold;
-}
+.best { border:2px solid #00ff88; }
+.favorite { border:2px solid gold; }
 
 .price-low { color:#00ff88; }
 .price-mid { color:#ffaa00; }
@@ -86,7 +79,7 @@ let userLng = 10.97;
 
 const API_URL = "https://mtqnxdwbwpvdzrblxpsz.supabase.co/functions/v1/dynamic-worker";
 
-// ⭐ FAVORITEN
+// ⭐ Favoriten
 let favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
 
 function toggleFavorite(id){
@@ -117,7 +110,7 @@ function getLocation(){
   }
 }
 
-// 🗺️ Map
+// 🗺️ Karte
 function initMap(){
   map = L.map('map').setView([userLat, userLng], 12);
 
@@ -128,41 +121,66 @@ function initMap(){
     .openPopup();
 }
 
-// 🔥 LOAD DATA
+// 🔥 Daten laden + Details holen
 async function loadData(){
   const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
   const data = await res.json();
 
+  // 🔥 jetzt für jede Tankstelle Details holen
+  for (let s of data.stations.slice(0, 10)) {
+    try {
+      const detailRes = await fetch(`${API_URL}&detail=${s.id}`);
+      const detail = await detailRes.json();
+
+      if(detail.station){
+        s.diesel = detail.station.diesel;
+        s.e5 = detail.station.e5;
+        s.e10 = detail.station.e10;
+      }
+    } catch(e){}
+  }
+
   renderList(data.stations);
 }
 
-// 🎨 Preis Farbe
+// 🎨 Preisfarbe
 function getPriceClass(price){
+  if(!price) return "";
   if(price < 2.10) return "price-low";
   if(price < 2.25) return "price-mid";
   return "price-high";
 }
 
-// 📦 LISTE
+// 📦 Liste
 function renderList(stations){
   const list = document.getElementById("list");
   list.innerHTML = "";
 
-  let best = stations.sort((a,b)=>a.price-b.price)[0];
+  stations.sort((a,b)=>{
+    const aFav = favorites.includes(a.id);
+    const bFav = favorites.includes(b.id);
+    return bFav - aFav || a.price - b.price;
+  });
+
+  let best = stations[0];
 
   stations.forEach(s=>{
     const isFav = favorites.includes(s.id);
 
     const div = document.createElement("div");
-    div.className = "card " 
+    div.className = "card "
       + (best.id === s.id ? "best " : "")
       + (isFav ? "favorite" : "");
 
     div.innerHTML = `
+      ${best.id === s.id ? "🏆 BESTER PREIS<br><br>" : ""}
+
       <b>${s.name}</b><br>
       ${s.place}<br><br>
 
-      ⛽ Preis: <span class="${getPriceClass(s.price)}">${s.price} €</span><br><br>
+      ⛽ Diesel: <span class="${getPriceClass(s.diesel)}">${s.diesel ?? "-"} €</span><br>
+      🟢 E5: ${s.e5 ?? "-"} €<br>
+      🔵 E10: ${s.e10 ?? "-"} €<br><br>
 
       📍 ${s.dist} km<br><br>
 
@@ -178,26 +196,29 @@ function renderList(stations){
   });
 }
 
-// 🧭 Navi
+// 🧭 Navigation
 function navigate(lat,lng){
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
 }
 
-// 🔔 PUSH (Basic vorbereitet)
+// 🔔 Push Test
 function requestPush(){
   if("Notification" in window){
     Notification.requestPermission().then(p=>{
       if(p === "granted"){
-        new Notification("🚀 Tankomat aktiv!", {
-          body:"Push funktioniert 😏"
-        });
+        new Notification("🚀 Tankomat aktiv!");
       }
     });
   }
 }
 
+// 🔄 Auto Refresh
+setInterval(loadData, 60000);
+
 getLocation();
 </script>
 
 </body>
+</html>
+
 </html>
