@@ -4,147 +4,52 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tankomat PRO 🚀</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-
-<style>
-body { margin:0; font-family: Arial; background:#0b1220; color:white; }
-
-header {
-  background: linear-gradient(90deg,#00c6ff,#00ff88);
-  padding:15px;
-  text-align:center;
-  font-size:20px;
-  font-weight:bold;
-}
-
-#map { height:250px; }
-
-button {
-  width:90%;
-  margin:8px auto;
-  display:block;
-  padding:12px;
-  border:none;
-  border-radius:8px;
-  background:#00cc66;
-  color:white;
-}
-
-.card {
-  background:#111a2e;
-  margin:10px;
-  padding:12px;
-  border-radius:10px;
-}
-</style>
-
+<title>Tankomat TEST</title>
 </head>
 
-<body>
+<body style="background:#111;color:white;font-family:Arial">
 
-<header>🚀 Tankomat PRO</header>
+<h2>Tankomat Test</h2>
+<button onclick="loadData()">Laden</button>
 
-<div id="map"></div>
-<button onclick="loadData()">🔄 Aktualisieren</button>
-<div id="list">🔄 Lade Daten...</div>
-
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<div id="list">Noch nichts geladen</div>
 
 <script>
-let map;
-let userLat = 52.18;
-let userLng = 10.97;
 
 const API_URL = "https://mtqnxdwbwpvdzrblxpsz.supabase.co/functions/v1/dynamic-worker";
 
-// 📍 Standort
-function getLocation(){
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(pos=>{
-      userLat = pos.coords.latitude;
-      userLng = pos.coords.longitude;
-      initMap();
-      loadData();
-    }, ()=>{
-      console.warn("GPS nicht erlaubt → fallback");
-      initMap();
-      loadData();
-    });
-  } else {
-    initMap();
-    loadData();
-  }
-}
-
-// 🗺️ Map
-function initMap(){
-  map = L.map('map').setView([userLat, userLng], 12);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-  L.marker([userLat, userLng]).addTo(map)
-    .bindPopup("📍 Du bist hier")
-    .openPopup();
-}
-
-// 🔥 LOAD DATA SAFE VERSION
 async function loadData(){
   const list = document.getElementById("list");
-  list.innerHTML = "🔄 Lade Tankstellen...";
+  list.innerHTML = "Lade...";
 
   try{
-
-    console.log("LAT/LNG:", userLat, userLng);
-
-    const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
-
-    if(!res.ok){
-      throw new Error("API antwortet nicht");
-    }
-
+    const res = await fetch(API_URL + "?lat=52.18&lng=10.97");
     const data = await res.json();
 
-    console.log("API DATA:", data);
+    console.log(data);
 
     if(!data.stations){
-      list.innerHTML = "❌ API liefert keine stations";
+      list.innerHTML = "❌ keine stations";
       return;
     }
 
-    renderList(data.stations);
+    list.innerHTML = "";
+
+    data.stations.forEach(s=>{
+      const div = document.createElement("div");
+      div.innerHTML = `
+        <b>${s.name}</b><br>
+        Preis: ${s.price} €<br><br>
+      `;
+      list.appendChild(div);
+    });
 
   }catch(e){
-    console.error("FEHLER:", e);
-    list.innerHTML = "❌ Fehler beim Laden<br><br>" + e.message;
+    console.error(e);
+    list.innerHTML = "❌ Fehler";
   }
 }
 
-// 📦 LISTE (EINFACH & STABIL)
-function renderList(stations){
-  const list = document.getElementById("list");
-  list.innerHTML = "";
-
-  stations.forEach(s=>{
-    const div = document.createElement("div");
-    div.className = "card";
-
-    div.innerHTML = `
-      <b>${s.name}</b><br>
-      ${s.place}<br><br>
-
-      ⛽ Preis: ${s.price ?? "-"} €<br><br>
-
-      📍 ${s.dist} km<br><br>
-    `;
-
-    list.appendChild(div);
-    L.marker([s.lat, s.lng]).addTo(map);
-  });
-}
-
-getLocation();
 </script>
 
 </body>
