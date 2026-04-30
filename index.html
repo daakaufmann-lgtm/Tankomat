@@ -124,7 +124,6 @@ async function loadData(){
   const res = await fetch(`${API_URL}?lat=${userLat}&lng=${userLng}`);
   const data = await res.json();
 
-  // Details laden (nur erste 10 für Performance)
   for (let s of data.stations.slice(0, 10)) {
     try {
       const detailRes = await fetch(`${API_URL}?detail=${s.id}`);
@@ -143,7 +142,7 @@ async function loadData(){
 
 // 🎨 Preisfarbe
 function getPriceClass(price){
-  if(!price) return "";
+  if(price == null) return "";
   if(price < 2.10) return "price-low";
   if(price < 2.25) return "price-mid";
   return "price-high";
@@ -177,11 +176,11 @@ function renderList(stations){
       ${s.place}<br><br>
 
       ⛽ Diesel: <span class="${getPriceClass(s.diesel)}">
-        ${s.diesel ? s.diesel + " €" : "nicht verfügbar"}
+        ${s.diesel != null ? s.diesel + " €" : "nicht verfügbar"}
       </span><br>
 
-      ${s.e5 ? "🟢 E5: " + s.e5 + " €<br>" : ""}
-      ${s.e10 ? "🔵 E10: " + s.e10 + " €<br>" : ""}
+      ${s.e5 != null ? "🟢 E5: " + s.e5 + " €<br>" : ""}
+      ${s.e10 != null ? "🔵 E10: " + s.e10 + " €<br>" : ""}
 
       <br>📍 ${s.dist} km<br><br>
 
@@ -202,17 +201,6 @@ function navigate(lat,lng){
   window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
 }
 
-// 🔔 Push Test
-function requestPush(){
-  if("Notification" in window){
-    Notification.requestPermission().then(p=>{
-      if(p === "granted"){
-        new Notification("🚀 Tankomat aktiv!");
-      }
-    });
-  }
-}
-
 // 🔄 Auto Refresh
 setInterval(loadData, 60000);
 
@@ -221,4 +209,5 @@ getLocation();
 
 </body>
 </html>
+
 
